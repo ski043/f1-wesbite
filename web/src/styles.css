@@ -1,0 +1,871 @@
+:root {
+  /* Ferrari palette — from design.md */
+  --red: #dc0000;
+  --yellow: #f7d117;
+  --carbon: #111111;
+  --canvas: #080808;
+  --text: #f4f1ec;
+  --muted: #8c877f;
+
+  --display: 'Instrument Serif', 'Times New Roman', serif;
+  --ui: 'Inter Tight', system-ui, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, monospace;
+
+  --gutter: 54px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+  /* `clip`, not `hidden`: hidden would make body its own scroll container and
+     break the pinned stage's progress measurement */
+  overflow-x: clip;
+}
+
+/* ------------------------------------------------------------------ */
+/* pinned stage                                                        */
+/* ------------------------------------------------------------------ */
+
+/* --p is overall travel; --p2 and --p3 are local to each beat, so per-beat
+   rules stay readable and don't need rescaling when beat lengths change */
+.scroll-root {
+  position: relative;
+  height: 600vh;
+  --p: 0;
+  --p2: 0;
+  --p3: 0;
+}
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 720px;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+/* --- layer 0: environment ----------------------------------------- */
+
+.env {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.env__bloom {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 1460px;
+  height: 780px;
+  /* only the glow tightens on approach — never the vignette, which must stay
+     locked to the viewport edges */
+  transform: translate(-50%, -50%) scale(calc(1 - var(--p2) * 0.16));
+  background: radial-gradient(
+    ellipse at center,
+    rgba(228, 18, 10, 0.44) 0%,
+    rgba(176, 6, 4, 0.24) 30%,
+    rgba(84, 2, 2, 0.1) 54%,
+    transparent 74%
+  );
+  filter: blur(22px);
+}
+
+.env__core {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  width: 820px;
+  height: 300px;
+  transform: translate(-50%, -50%) scale(calc(1 - var(--p2) * 0.12));
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 82, 52, 0.36) 0%,
+    rgba(222, 20, 10, 0.16) 42%,
+    transparent 72%
+  );
+  filter: blur(30px);
+}
+
+.env__horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 64%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(220, 0, 0, 0.2) 20%,
+    rgba(255, 110, 80, 0.6) 50%,
+    rgba(220, 0, 0, 0.2) 80%,
+    transparent 100%
+  );
+}
+
+.env__streaks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 240px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 30px,
+    rgba(255, 78, 54, 0.055) 31px,
+    transparent 33px
+  );
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  filter: blur(1.6px);
+  opacity: calc(1 - var(--p2) * 1.6);
+}
+
+.env__floor {
+  position: absolute;
+  left: 50%;
+  top: 78%;
+  width: 1180px;
+  height: 250px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(170, 26, 12, 0.18) 0%,
+    rgba(60, 6, 4, 0.07) 46%,
+    transparent 74%
+  );
+  filter: blur(26px);
+}
+
+.env__vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 78% 68% at 50% 52%, transparent 38%, rgba(0, 0, 0, 0.76) 100%),
+    linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.7) 0%,
+      transparent 20%,
+      transparent 74%,
+      rgba(0, 0, 0, 0.9) 100%
+    );
+}
+
+/* --- layer 1: ghosted race numbers -------------------------------- */
+
+.ghosts {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: calc(1 - var(--p2) * 4);
+}
+
+.ghost {
+  position: absolute;
+  font-family: var(--display);
+  font-size: 310px;
+  line-height: 0.74;
+  color: rgba(244, 241, 236, 0.05);
+  user-select: none;
+}
+
+.ghost--left {
+  left: 40px;
+  top: 178px;
+}
+
+.ghost--right {
+  right: 40px;
+  top: 178px;
+}
+
+/* --- layer 2: display wordmark ------------------------------------ */
+
+/* wrapper owns the scroll transform, the heading owns the entrance transform,
+   so the two never fight over the same property */
+.display-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 17.5%;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transform-origin: 50% 62%;
+  transform: scale(calc(1 + var(--p2) * 0.45));
+  opacity: calc(1 - var(--p2) * 2.6);
+}
+
+.display {
+  font-family: var(--display);
+  font-size: clamp(9rem, 28vw, 30rem);
+  font-weight: 400;
+  line-height: 0.78;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  user-select: none;
+  color: transparent;
+  background: linear-gradient(
+    to bottom,
+    #fffdfb 0%,
+    #f3ece3 30%,
+    #bdb3a8 66%,
+    #6b635b 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 30px 80px rgba(0, 0, 0, 0.8));
+}
+
+/* --- layer 3: car canvas ------------------------------------------ */
+
+.stage3d {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+}
+
+/* --- layer 4: drivers, nearest the camera -------------------------- */
+
+/* nearest the camera, so they leave frame fastest as we move in */
+.driver {
+  position: absolute;
+  z-index: 40;
+  bottom: 0;
+  height: 74vh;
+  min-height: 560px;
+  pointer-events: none;
+  user-select: none;
+  opacity: calc(1 - var(--p2) * 3.4);
+}
+
+.driver--left {
+  left: -120px;
+  transform: translateX(calc(var(--p2) * -34vw));
+}
+
+.driver--right {
+  right: -108px;
+  transform: translateX(calc(var(--p2) * 34vw));
+}
+
+.driver__glow {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 560px;
+  height: 560px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle at center,
+    rgba(224, 12, 8, 0.3) 0%,
+    rgba(140, 4, 4, 0.12) 40%,
+    transparent 68%
+  );
+  filter: blur(30px);
+}
+
+.driver__img {
+  position: relative;
+  display: block;
+  height: 100%;
+  width: auto;
+  filter: brightness(0.76) contrast(1.16) saturate(0.94)
+    drop-shadow(0 0 40px rgba(220, 8, 4, 0.34))
+    drop-shadow(0 26px 50px rgba(0, 0, 0, 0.9));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 66%,
+    rgba(0, 0, 0, 0.55) 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 66%,
+    rgba(0, 0, 0, 0.55) 86%,
+    transparent 100%
+  );
+}
+
+/* --- layer 5: chrome ---------------------------------------------- */
+
+.chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.chrome a,
+.chrome button {
+  pointer-events: auto;
+}
+
+.nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 76px;
+  padding: 0 var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(244, 241, 236, 0.07);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brand__mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.brand__text {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.nav__links {
+  display: flex;
+  gap: 32px;
+}
+
+.nav__links a {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(244, 241, 236, 0.6);
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.nav__links a:hover {
+  color: var(--text);
+}
+
+.nav__right {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* bottom band: driver / stats / driver */
+.footer {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: 0;
+  height: 94px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  border-top: 1px solid rgba(244, 241, 236, 0.09);
+}
+
+.footer__driver {
+  min-width: 190px;
+}
+
+.footer__driver--right {
+  text-align: right;
+}
+
+.footer__name {
+  font-family: var(--display);
+  font-size: 30px;
+  line-height: 1.02;
+  color: var(--text);
+  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.9);
+}
+
+.footer__meta {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.footer__stats {
+  display: flex;
+  gap: 54px;
+}
+
+.stat__label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.stat__value {
+  display: block;
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.stat__value em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 3px;
+}
+
+/* scroll affordance, only present at the top of the beat */
+.scroll-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 116px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  opacity: calc(1 - var(--p2) * 6);
+}
+
+.scroll-hint i {
+  display: block;
+  width: 1px;
+  height: 34px;
+  background: linear-gradient(to bottom, rgba(244, 241, 236, 0.5), transparent);
+}
+
+/* --- side elevation caption, arrives at the end of the beat -------- */
+
+/* the elevation caption belongs to the hand-over moment only; the tour brings
+   its own labels, so it clears out as beat 3 starts */
+.profile {
+  position: absolute;
+  inset: 0;
+  opacity: calc(clamp(0, (var(--p2) - 0.72) * 4, 1) * clamp(0, 1 - var(--p3) * 8, 1));
+}
+
+/* ------------------------------------------------------------------ */
+/* beat 3 — travelling shot caption                                    */
+/* ------------------------------------------------------------------ */
+
+/* The camera centres each component in turn, so the caption can hold one
+   fixed position and simply cross-fade its contents. --f0..--f5 are written
+   per frame from the scroll loop: 1 on arrival at a stop, 0 in transit. */
+/* The car sweeps all round the frame during the orbit, so each stop declares
+   which corner is empty and the caption goes there, carrying its own scrim. */
+.tour {
+  position: absolute;
+  inset: 0;
+}
+
+.tour__item {
+  position: absolute;
+  left: var(--gutter);
+  width: 320px;
+  padding-left: 15px;
+  border-left: 1px solid rgba(244, 241, 236, 0.18);
+  opacity: 0;
+}
+
+.tour__item--bottom {
+  bottom: 126px;
+}
+
+.tour__item--top {
+  top: 17%;
+}
+
+/* radial from the caption's own corner, so it fades out well inside its bounds
+   and never shows a rectangular edge across the bodywork */
+.tour__item::before {
+  content: '';
+  position: absolute;
+  left: -220px;
+  width: 940px;
+  height: 560px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.tour__item--bottom::before {
+  bottom: -180px;
+  background: radial-gradient(
+    ellipse 58% 58% at 12% 88%,
+    rgba(6, 6, 6, 0.97) 0%,
+    rgba(6, 6, 6, 0.8) 30%,
+    rgba(6, 6, 6, 0.42) 52%,
+    transparent 78%
+  );
+}
+
+.tour__item--top::before {
+  top: -190px;
+  background: radial-gradient(
+    ellipse 58% 58% at 12% 22%,
+    rgba(6, 6, 6, 0.97) 0%,
+    rgba(6, 6, 6, 0.8) 30%,
+    rgba(6, 6, 6, 0.42) 52%,
+    transparent 78%
+  );
+}
+
+.tour__item:nth-child(1) {
+  opacity: var(--f0, 0);
+  transform: translateY(calc((1 - var(--f0, 0)) * 10px));
+}
+.tour__item:nth-child(2) {
+  opacity: var(--f1, 0);
+  transform: translateY(calc((1 - var(--f1, 0)) * 10px));
+}
+.tour__item:nth-child(3) {
+  opacity: var(--f2, 0);
+  transform: translateY(calc((1 - var(--f2, 0)) * 10px));
+}
+.tour__item:nth-child(4) {
+  opacity: var(--f3, 0);
+  transform: translateY(calc((1 - var(--f3, 0)) * 10px));
+}
+.tour__item:nth-child(5) {
+  opacity: var(--f4, 0);
+  transform: translateY(calc((1 - var(--f4, 0)) * 10px));
+}
+.tour__item:nth-child(6) {
+  opacity: var(--f5, 0);
+  transform: translateY(calc((1 - var(--f5, 0)) * 10px));
+}
+
+.tour__n {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--yellow);
+  margin-bottom: 8px;
+}
+
+.tour__label {
+  display: block;
+  font-family: var(--display);
+  font-size: 46px;
+  line-height: 1.02;
+  color: var(--text);
+}
+
+.tour__spec {
+  display: block;
+  margin-top: 9px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* progress through the six stops — parked bottom-right, clear of the captions */
+.tour__ticks {
+  position: absolute;
+  right: var(--gutter);
+  bottom: 60px;
+  display: flex;
+  gap: 7px;
+  opacity: clamp(0, calc(var(--p3) * 14), 1);
+}
+
+.tour__tick {
+  width: 26px;
+  height: 2px;
+  background: rgba(244, 241, 236, 0.16);
+}
+
+.tour__tick:nth-child(1) {
+  background: color-mix(in srgb, var(--red) calc(var(--f0, 0) * 100%), rgba(244, 241, 236, 0.16));
+}
+.tour__tick:nth-child(2) {
+  background: color-mix(in srgb, var(--red) calc(var(--f1, 0) * 100%), rgba(244, 241, 236, 0.16));
+}
+.tour__tick:nth-child(3) {
+  background: color-mix(in srgb, var(--red) calc(var(--f2, 0) * 100%), rgba(244, 241, 236, 0.16));
+}
+.tour__tick:nth-child(4) {
+  background: color-mix(in srgb, var(--red) calc(var(--f3, 0) * 100%), rgba(244, 241, 236, 0.16));
+}
+.tour__tick:nth-child(5) {
+  background: color-mix(in srgb, var(--red) calc(var(--f4, 0) * 100%), rgba(244, 241, 236, 0.16));
+}
+.tour__tick:nth-child(6) {
+  background: color-mix(in srgb, var(--red) calc(var(--f5, 0) * 100%), rgba(244, 241, 236, 0.16));
+}
+
+.profile__title {
+  position: absolute;
+  left: var(--gutter);
+  bottom: 104px;
+}
+
+.profile__name {
+  display: block;
+  font-family: var(--display);
+  font-size: 68px;
+  line-height: 0.96;
+  color: var(--text);
+}
+
+.profile__sub {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* measurement rule under the car */
+.profile__axis {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 88px;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(244, 241, 236, 0.18) 12%,
+    rgba(244, 241, 236, 0.18) 88%,
+    transparent
+  );
+}
+
+/* --- layer 6: grain ----------------------------------------------- */
+
+.grain {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------------ */
+/* boot sequence — F1 start lights                                     */
+/* ------------------------------------------------------------------ */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+  transition: opacity 0.75s ease, visibility 0s linear 0.75s;
+}
+
+.boot--gone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.boot__inner::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  width: 720px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, rgba(226, 16, 6, 0.3) 0%, transparent 68%);
+  filter: blur(34px);
+  opacity: calc(var(--lit, 0) / 5);
+  transition: opacity 0.22s linear;
+  pointer-events: none;
+}
+
+.gantry {
+  display: flex;
+  gap: 16px;
+}
+
+.pod {
+  width: 58px;
+  padding: 11px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  border-radius: 4px;
+  background: linear-gradient(#151515, #090909);
+  border: 1px solid rgba(244, 241, 236, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.pod__lamp {
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #2b1b1b 0%, #150e0e 55%, #0a0606 100%);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.9);
+  /* real lights snap, they don't fade */
+  transition: background 0.08s linear, box-shadow 0.08s linear;
+}
+
+.pod--on .pod__lamp {
+  background: radial-gradient(circle at 38% 32%, #ff6a52 0%, #f81100 40%, #a30000 100%);
+  box-shadow:
+    inset 0 0 5px rgba(255, 120, 90, 0.4),
+    0 0 9px rgba(255, 26, 6, 1),
+    0 0 22px rgba(238, 8, 0, 0.72),
+    0 0 52px rgba(185, 0, 0, 0.34);
+}
+
+.boot__caption {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  transition: opacity 0.2s ease;
+}
+
+.boot__caption--gone {
+  opacity: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* entrance choreography                                               */
+/* ------------------------------------------------------------------ */
+
+.env,
+.ghosts,
+.display,
+.stage3d,
+.driver__img,
+.nav,
+.footer,
+.scroll-hint {
+  opacity: 0;
+}
+
+.display {
+  transform: translateY(30px) scale(1.035);
+}
+
+.driver__img {
+  transform: translateY(44px);
+}
+
+.nav {
+  transform: translateY(-16px);
+}
+
+.footer {
+  transform: translateY(20px);
+}
+
+.is-revealed .env {
+  opacity: 1;
+  transition: opacity 1.3s ease 0.02s;
+}
+
+.is-revealed .display {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 1.15s ease 0.16s,
+    transform 1.35s cubic-bezier(0.16, 1, 0.3, 1) 0.16s;
+}
+
+.is-revealed .stage3d {
+  opacity: 1;
+  transition: opacity 1.1s ease 0.3s;
+}
+
+.is-revealed .driver--left .driver__img {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 1s ease 0.52s,
+    transform 1.25s cubic-bezier(0.16, 1, 0.3, 1) 0.52s;
+}
+
+.is-revealed .driver--right .driver__img {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 1s ease 0.64s,
+    transform 1.25s cubic-bezier(0.16, 1, 0.3, 1) 0.64s;
+}
+
+.is-revealed .ghosts {
+  opacity: calc(1 - var(--p2) * 4);
+  transition: opacity 1.4s ease 0.85s;
+}
+
+.is-revealed .nav {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.9s ease 0.95s,
+    transform 1s cubic-bezier(0.16, 1, 0.3, 1) 0.95s;
+}
+
+.is-revealed .footer {
+  opacity: calc(1 - var(--p2) * 3.4);
+  transform: translateY(0);
+  transition:
+    opacity 0.9s ease 1.05s,
+    transform 1s cubic-bezier(0.16, 1, 0.3, 1) 1.05s;
+}
+
+.is-revealed .scroll-hint {
+  opacity: calc(1 - var(--p2) * 6);
+  transition: opacity 0.9s ease 1.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .env,
+  .ghosts,
+  .display,
+  .stage3d,
+  .driver__img,
+  .nav,
+  .footer,
+  .scroll-hint {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
